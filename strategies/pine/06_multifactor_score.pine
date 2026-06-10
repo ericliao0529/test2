@@ -1,0 +1,74 @@
+//@version=6
+// 策略 06：多因子綜合評分（價量 + 基本面）
+// 邏輯：把 6 個因子各記 1 分（趨勢、動能、量能、波動、EPS 成長、營收成長），
+//       總分 >= 進場門檻時持有，跌破出場門檻時離場。
+//       可在「策略測試器」中調整各門檻做敏感度分析。
+// 適用：日線／週線，全市場通用。
+strategy("06 多因子綜合評分", overlay = true,
+     initial_capital = 1000000,
+     default_qty_type = strategy.percent_of_equity, default_qty_value = 95,
+     commission_type = strategy.commission.percent, commission_value = 0.1,
+     slippage = 2)
+
+// ===== 參數 =====
+entryScore = input.int(4, "進場分數門檻", minval = 1, maxval = 6)
+exitScore  = input.int(2, "出場分數門檻", minval = 0, maxval = 5)
+trendLen   = input.int(100, "趨勢均線長度")
+momLen     = input.int(63,  "動能回看期（約一季）")
+volMaLen   = input.int(20,  "均量長度")
+atrLen     = input.int(14,  "ATR 長度")
+atrPctMax  = input.float(6.0, "波動上限：ATR% 不得高於", step = 0.5)
+useFundamentals = input.bool(true, "計入基本面因子（無財報資料的標的請關閉）")
+
+startDate = input.time(timestamp("2018-01-01"), "回測起始日")
+endDate   = input.time(timestamp("2030-12-31"), "回測結束日")
+inRange   = time >= startDate and time <= endDate
+
+// ===== 因子 1：趨勢（價格在均線之上）=====
+f_trend = close > ta.sma(close, trendLen) ? 1 : 0
+
+// ===== 因子 2：動能（近一季報酬為正且優於大盤可自行擴充）=====
+f_mom = close > close[momLen] ? 1 : 0
+
+// ===== 因子 3：量能（均量趨勢向上 = 人氣回流）=====
+volMA = ta.sma(volume, volMaLen)
+f_vol = volMA > volMA[volMaLen] ? 1 : 0
+
+// ===== 因子 4：波動可控（ATR% 不過高，避開暴漲暴跌段）=====
+atrPct = ta.atr(atrLen) / close * 100
+f_atr = atrPct < atrPctMax ? 1 : 0
+
+// ===== 因子 5、6：基本面（EPS / 營收年增）=====
+epsQ = request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE_BASIC", "FQ")
+revQ = request.financial(syminfo.tickerid, "TOTAL_REVENUE", "FQ")
+yoy(series float s) =>
+    prev = ta.valuewhen(ta.change(s) != 0, s, 4)
+    na(prev) or prev == 0 ? na : (s - prev) / math.abs(prev) * 100
+epsYoY = yoy(epsQ)
+revYoY = yoy(revQ)
+f_eps = useFundamentals ? (not na(epsYoY) and epsYoY > 0 ? 1 : 0) : 1
+f_rev = useFundamentals ? (not na(revYoY) and revYoY > 0 ? 1 : 0) : 1
+
+// ===== 總分 =====
+score = f_trend + f_mom + f_vol + f_atr + f_eps + f_rev
+
+// ===== 進出場 =====
+if inRange
+    if score >= entryScore and strategy.position_size == 0
+        strategy.entry("多因子", strategy.long)
+    if score <= exitScore and strategy.position_size > 0
+        strategy.close("多因子", comment = "分數轉弱 " + str.tostring(score))
+
+// ===== 繪圖 =====
+plot(ta.sma(close, trendLen), "趨勢均線", color = color.blue)
+bgcolor(score >= entryScore ? color.new(color.green, 90) :
+     score <= exitScore ? color.new(color.red, 92) : na)
+
+// 在資料視窗檢視每個因子得分
+plot(score, "總分",    display = display.data_window)
+plot(f_trend, "趨勢分", display = display.data_window)
+plot(f_mom, "動能分",  display = display.data_window)
+plot(f_vol, "量能分",  display = display.data_window)
+plot(f_atr, "波動分",  display = display.data_window)
+plot(f_eps, "EPS分",   display = display.data_window)
+plot(f_rev, "營收分",  display = display.data_window)

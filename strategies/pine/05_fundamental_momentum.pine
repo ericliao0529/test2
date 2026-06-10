@@ -1,0 +1,74 @@
+//@version=6
+// 策略 05：基本面濾網 + 價格動能（GARP 動能策略）
+// 邏輯：利用 TradingView Pro 的財報資料 request.financial()，
+//       只在「EPS 年增、營收年增、ROE 達標」的基本面良好期間，
+//       搭配價格動能（站上均線且創 N 日新高）進場。
+//       基本面轉差或跌破長均線出場。
+// 注意：財報資料需要該股票在 TradingView 上有財務數據（多數美股／台股皆有）。
+// 適用：日線／週線，基本面成長股。
+strategy("05 基本面+動能 (GARP)", overlay = true,
+     initial_capital = 1000000,
+     default_qty_type = strategy.percent_of_equity, default_qty_value = 95,
+     commission_type = strategy.commission.percent, commission_value = 0.1,
+     slippage = 2)
+
+// ===== 參數 =====
+epsGrowthMin = input.float(10.0, "EPS 年增率下限 %", step = 1)
+revGrowthMin = input.float(5.0,  "營收年增率下限 %", step = 1)
+roeMin       = input.float(10.0, "ROE 下限 %", step = 1)
+useEps = input.bool(true,  "啟用 EPS 成長濾網")
+useRev = input.bool(true,  "啟用營收成長濾網")
+useRoe = input.bool(false, "啟用 ROE 濾網")
+momLen   = input.int(100, "動能均線長度")
+hhLen    = input.int(20,  "創新高回看期")
+stopPct  = input.float(12.0, "固定停損 %", step = 0.5)
+
+startDate = input.time(timestamp("2018-01-01"), "回測起始日")
+endDate   = input.time(timestamp("2030-12-31"), "回測結束日")
+inRange   = time >= startDate and time <= endDate
+
+// ===== 基本面資料（季報）=====
+epsQ  = request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE_BASIC", "FQ")
+revQ  = request.financial(syminfo.tickerid, "TOTAL_REVENUE", "FQ")
+roeQ  = request.financial(syminfo.tickerid, "RETURN_ON_EQUITY", "FQ")
+
+// 年增率：本季 vs 去年同季（往回 4 季）
+yoy(series float s) =>
+    prev = ta.valuewhen(ta.change(s) != 0, s, 4)
+    na(prev) or prev == 0 ? na : (s - prev) / math.abs(prev) * 100
+
+epsYoY = yoy(epsQ)
+revYoY = yoy(revQ)
+
+fundOkEps = not useEps or (not na(epsYoY) and epsYoY > epsGrowthMin)
+fundOkRev = not useRev or (not na(revYoY) and revYoY > revGrowthMin)
+fundOkRoe = not useRoe or (not na(roeQ) and roeQ > roeMin)
+fundamentalsOK = fundOkEps and fundOkRev and fundOkRoe
+
+// ===== 價格動能 =====
+momMA  = ta.sma(close, momLen)
+newHigh = close > ta.highest(high, hhLen)[1]
+momentumOK = close > momMA and newHigh
+
+// ===== 進出場 =====
+longEntry = fundamentalsOK and momentumOK
+longExit  = (not fundamentalsOK) or close < momMA
+
+if inRange and longEntry and strategy.position_size == 0
+    strategy.entry("成長多", strategy.long)
+
+if strategy.position_size > 0
+    if longExit
+        strategy.close("成長多", comment = not fundamentalsOK ? "基本面轉差" : "跌破動能線")
+    strategy.exit("停損", from_entry = "成長多",
+         stop = strategy.opentrades.entry_price(0) * (1 - stopPct / 100))
+
+// ===== 繪圖 =====
+plot(momMA, "動能均線", color = color.blue)
+bgcolor(fundamentalsOK ? color.new(color.green, 92) : color.new(color.red, 95))
+plotchar(longEntry and strategy.position_size == 0, "進場", "▲", location.belowbar, color.lime, size = size.small)
+
+// 資料視窗顯示基本面數據，方便檢查
+plot(epsYoY, "EPS YoY %", display = display.data_window)
+plot(revYoY, "營收 YoY %", display = display.data_window)
+plot(roeQ,   "ROE %",     display = display.data_window)
