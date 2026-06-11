@@ -1,0 +1,113 @@
+//@version=6
+// 指標 08：因子診斷表 —— 回答「這檔股票吃哪種因子？」
+// 用法：貼到任何個股圖表（建議日線），右上角會出現統計表。
+// 原理：對六個因子各自統計「因子開啟 vs 關閉時，未來 N 根 K 棒的平均報酬」。
+//       開啟時報酬明顯高於關閉時（優勢欄為正且樣本夠多）＝這檔股票吃這個因子，
+//       表中會直接標示該因子對應的專門策略（01–05）。
+// 注意：樣本數 < 30 的列參考價值低；ETF 沒有財報資料時 EPS/營收列會顯示「無資料」。
+indicator("08 因子診斷表", overlay = true)
+
+fwdLen    = input.int(20,  "前瞻報酬視窗（K 棒數）", minval = 5)
+trendLen  = input.int(100, "趨勢均線長度")
+momLen    = input.int(63,  "動能回看期（約一季）")
+volMaLen  = input.int(20,  "均量長度")
+atrLen    = input.int(14,  "ATR 長度")
+atrPctMax = input.float(6.0, "波動上限：ATR% 低於", step = 0.5)
+useFund   = input.bool(true, "計入基本面因子（ETF 請關閉）")
+minSample = input.int(30, "最低樣本數（低於此數不給結論）")
+
+// ===== 六因子（定義與策略 06 一致）=====
+f1 = close > ta.sma(close, trendLen)                  // 趨勢
+f2 = close > close[momLen]                            // 動能
+volMA = ta.sma(volume, volMaLen)
+f3 = volMA > volMA[volMaLen]                          // 量能
+f4 = ta.atr(atrLen) / close * 100 < atrPctMax         // 低波動
+
+epsQ = request.financial(syminfo.tickerid, "EARNINGS_PER_SHARE_BASIC", "FQ", ignore_invalid_symbol = true)
+revQ = request.financial(syminfo.tickerid, "TOTAL_REVENUE", "FQ", ignore_invalid_symbol = true)
+yoy(series float s) =>
+    prev = ta.valuewhen(ta.change(s) != 0, s, 4)
+    na(prev) or prev == 0 ? na : (s - prev) / math.abs(prev) * 100
+epsYoY = yoy(epsQ)
+revYoY = yoy(revQ)
+f5 = useFund and not na(epsYoY) and epsYoY > 0        // EPS 年增
+f6 = useFund and not na(revYoY) and revYoY > 0        // 營收年增
+hasFund = useFund and not na(epsYoY)
+
+// ===== 統計：fwdLen 棒前的因子狀態 vs 之後實現的報酬 =====
+fwdRet = (close / close[fwdLen] - 1) * 100   // = fwdLen 棒前那根 K 的「未來報酬」
+
+var sumOn  = array.new_float(6, 0.0)
+var cntOn  = array.new_int(6, 0)
+var sumOff = array.new_float(6, 0.0)
+var cntOff = array.new_int(6, 0)
+
+record(int idx, bool condPast) =>
+    if condPast
+        array.set(sumOn, idx, array.get(sumOn, idx) + fwdRet)
+        array.set(cntOn, idx, array.get(cntOn, idx) + 1)
+    else
+        array.set(sumOff, idx, array.get(sumOff, idx) + fwdRet)
+        array.set(cntOff, idx, array.get(cntOff, idx) + 1)
+
+warmup = math.max(trendLen, momLen) + fwdLen
+if not na(fwdRet) and bar_index > warmup
+    record(0, f1[fwdLen])
+    record(1, f2[fwdLen])
+    record(2, f3[fwdLen])
+    record(3, f4[fwdLen])
+    if hasFund
+        record(4, f5[fwdLen])
+        record(5, f6[fwdLen])
+
+// ===== 結果表 =====
+var names  = array.from("趨勢：站上長均線", "動能：近一季上漲", "量能：均量上升", "低波動：ATR% 達標", "基本面：EPS 年增", "基本面：營收年增")
+var strats = array.from("01 趨勢+ADX", "01 / 03", "03 / 04 量價", "02 均值回歸", "05 GARP", "05 GARP")
+
+var table t = table.new(position.top_right, 6, 8, border_width = 1, frame_color = color.gray, frame_width = 1)
+
+if barstate.islast
+    // 標題列
+    table.cell(t, 0, 0, "因子", bgcolor = color.new(color.blue, 70), text_size = size.small)
+    table.cell(t, 1, 0, "開啟時間%", bgcolor = color.new(color.blue, 70), text_size = size.small)
+    table.cell(t, 2, 0, "開啟→未來" + str.tostring(fwdLen) + "棒平均%", bgcolor = color.new(color.blue, 70), text_size = size.small)
+    table.cell(t, 3, 0, "關閉→平均%", bgcolor = color.new(color.blue, 70), text_size = size.small)
+    table.cell(t, 4, 0, "優勢(差距)", bgcolor = color.new(color.blue, 70), text_size = size.small)
+    table.cell(t, 5, 0, "對應策略", bgcolor = color.new(color.blue, 70), text_size = size.small)
+
+    // 找最強因子（樣本足夠且優勢最大）
+    bestIdx = -1
+    bestEdge = -1e9
+    for i = 0 to 5
+        nOn = array.get(cntOn, i)
+        nOff = array.get(cntOff, i)
+        if nOn >= minSample and nOff >= minSample
+            edge = array.get(sumOn, i) / nOn - array.get(sumOff, i) / nOff
+            if edge > bestEdge
+                bestEdge := edge
+                bestIdx := i
+
+    for i = 0 to 5
+        nOn = array.get(cntOn, i)
+        nOff = array.get(cntOff, i)
+        row = i + 1
+        noData = (i >= 4 and not hasFund) or (nOn + nOff == 0)
+        lowSample = not noData and (nOn < minSample or nOff < minSample)
+        avgOn  = nOn  > 0 ? array.get(sumOn, i) / nOn : na
+        avgOff = nOff > 0 ? array.get(sumOff, i) / nOff : na
+        edge   = avgOn - avgOff
+        rowBg  = i == bestIdx ? color.new(color.green, 75) :
+                 not na(edge) and edge < 0 ? color.new(color.red, 88) : color.new(color.gray, 95)
+        table.cell(t, 0, row, array.get(names, i) + (i == bestIdx ? " ★" : ""), bgcolor = rowBg, text_size = size.small, text_halign = text.align_left)
+        table.cell(t, 1, row, noData ? "無資料" : str.tostring(100.0 * nOn / (nOn + nOff), "#.0"), bgcolor = rowBg, text_size = size.small)
+        table.cell(t, 2, row, noData ? "-" : str.tostring(avgOn, "#.##"), bgcolor = rowBg, text_size = size.small)
+        table.cell(t, 3, row, noData ? "-" : str.tostring(avgOff, "#.##"), bgcolor = rowBg, text_size = size.small)
+        table.cell(t, 4, row, noData ? "-" : str.tostring(edge, "#.##") + (lowSample ? " (樣本不足)" : ""), bgcolor = rowBg, text_size = size.small)
+        table.cell(t, 5, row, array.get(strats, i), bgcolor = rowBg, text_size = size.small)
+
+    // 結論列
+    concl = bestIdx >= 0 ?
+         "結論：這檔最吃「" + array.get(names, bestIdx) + "」→ 優先測策略 " + array.get(strats, bestIdx) :
+         "結論：樣本不足或無明顯優勢因子，建議拉長回測區間"
+    table.cell(t, 0, 7, concl, bgcolor = color.new(color.orange, 75), text_size = size.small, text_halign = text.align_left)
+    table.merge_cells(t, 0, 7, 5, 7)
