@@ -4,10 +4,10 @@
 //       OBV 與價格背離（OBV 走弱）時出場。捕捉「量先價行」的主力吸籌行情。
 // 適用：日線／週線。
 strategy("04 OBV 籌碼累積", overlay = false,
-     initial_capital = 1000000,
+     initial_capital = 100,
      default_qty_type = strategy.percent_of_equity, default_qty_value = 95,
-     commission_type = strategy.commission.percent, commission_value = 0.1,
-     slippage = 2)
+     commission_type = strategy.commission.percent, commission_value = 0,
+     slippage = 0)
 
 // ===== 參數 =====
 obvMaLen  = input.int(30, "OBV 均線長度")

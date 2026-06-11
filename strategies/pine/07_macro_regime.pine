@@ -10,10 +10,10 @@
 //       回測績效會略偏樂觀；本程式已將月頻官方數據往後挪 1 根月 K 修正。
 // 適用：日線／週線／月線皆可（總經數據自動取月頻）。
 strategy("07 總經情勢評分濾網", overlay = true,
-     initial_capital = 1000000,
+     initial_capital = 100,
      default_qty_type = strategy.percent_of_equity, default_qty_value = 95,
-     commission_type = strategy.commission.percent, commission_value = 0.1,
-     slippage = 2)
+     commission_type = strategy.commission.percent, commission_value = 0,
+     slippage = 0)
 
 // ===== 參數 =====
 entryScore = input.int(4, "進場評分門檻（0-6）", minval = 0, maxval = 6)
