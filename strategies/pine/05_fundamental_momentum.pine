@@ -7,7 +7,7 @@
 // 注意：財報資料需要該股票在 TradingView 上有財務數據（多數美股／台股皆有）。
 // 適用：日線／週線，基本面成長股。
 strategy("05 基本面+動能 (GARP)", overlay = true,
-     initial_capital = 100,
+     initial_capital = 50000,
      default_qty_type = strategy.percent_of_equity, default_qty_value = 95,
      commission_type = strategy.commission.percent, commission_value = 0,
      slippage = 0)
