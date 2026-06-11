@@ -1,0 +1,80 @@
+//@version=6
+// 策略 07：總經情勢評分濾網（Macro Regime Score）
+// 邏輯：用 TradingView 內建的 FRED 總經數據算 0–6 分情勢評分，
+//       分數達門檻（總經順風）才允許持有該個股，並可疊加價格趨勢確認。
+//       六因子：就業、殖利率曲線、通膨、Fed 政策、信用利差、工業生產。
+// 實證：用 1998–2025 真實數據回測 S&P 500（見 backtest/macro/），
+//       評分 6 分時下月上漲機率 79%、平均 +1.5%；2 分以下平均為負。
+//       主要效果是「砍掉大空頭」：最大回撤從 -51% 降到 -30%。
+// 注意：TradingView 以「觀測日」對齊 FRED 數據，與實際公布日差約 1 個月，
+//       回測績效會略偏樂觀；本程式已將月頻官方數據往後挪 1 根月 K 修正。
+// 適用：日線／週線／月線皆可（總經數據自動取月頻）。
+strategy("07 總經情勢評分濾網", overlay = true,
+     initial_capital = 1000000,
+     default_qty_type = strategy.percent_of_equity, default_qty_value = 95,
+     commission_type = strategy.commission.percent, commission_value = 0.1,
+     slippage = 2)
+
+// ===== 參數 =====
+entryScore = input.int(4, "進場評分門檻（0-6）", minval = 0, maxval = 6)
+exitScore  = input.int(3, "出場評分門檻", minval = 0, maxval = 6)
+useTrend   = input.bool(true, "疊加價格趨勢確認（站上 10 月線）")
+trendLen   = input.int(10, "趨勢均線長度（月）")
+
+startDate = input.time(timestamp("2000-01-01"), "回測起始日")
+endDate   = input.time(timestamp("2030-12-31"), "回測結束日")
+inRange   = time >= startDate and time <= endDate
+
+// ===== FRED 總經數據（月頻） =====
+// shift 1 根月 K：模擬「上月數據要到本月中才公布」的真實延遲
+f_get(sym) => request.security(sym, "1M", close[1], lookahead = barmerge.lookahead_off)
+
+unrate   = f_get("FRED:UNRATE")        // 失業率
+fedfunds = f_get("FRED:FEDFUNDS")      // 聯邦基金利率
+cpi      = f_get("FRED:CPIAUCSL")      // CPI
+indpro   = f_get("FRED:INDPRO")        // 工業生產
+// 市場即時數據不必延遲
+t10y2y   = request.security("FRED:T10Y2Y", "1M", close, lookahead = barmerge.lookahead_off)
+hySpread = request.security("FRED:BAMLH0A0HYM2", "1M", close, lookahead = barmerge.lookahead_off)
+
+// 月頻序列的移動平均／變化（在月頻 context 計算）
+unrateMA12 = request.security("FRED:UNRATE",       "1M", ta.sma(close[1], 12), lookahead = barmerge.lookahead_off)
+cpiYoY     = request.security("FRED:CPIAUCSL",     "1M", (close[1] / close[13] - 1) * 100, lookahead = barmerge.lookahead_off)
+cpiYoY3ago = request.security("FRED:CPIAUCSL",     "1M", (close[4] / close[16] - 1) * 100, lookahead = barmerge.lookahead_off)
+fedChg3m   = request.security("FRED:FEDFUNDS",     "1M", close[1] - close[4], lookahead = barmerge.lookahead_off)
+hyMA6      = request.security("FRED:BAMLH0A0HYM2", "1M", ta.sma(close, 6), lookahead = barmerge.lookahead_off)
+indproYoY  = request.security("FRED:INDPRO",       "1M", (close[1] / close[13] - 1) * 100, lookahead = barmerge.lookahead_off)
+
+// ===== 六因子評分 =====
+s1 = not na(unrate) and unrate < unrateMA12 ? 1 : 0            // 就業：失業率低於 12 月均值
+s2 = not na(t10y2y) and t10y2y > 0 ? 1 : 0                     // 曲線：未倒掛
+s3 = not na(cpiYoY) and (cpiYoY < 4 or cpiYoY < cpiYoY3ago) ? 1 : 0  // 通膨：溫和或降溫
+s4 = not na(fedChg3m) and fedChg3m <= 0 ? 1 : 0                // 政策：Fed 沒在升息
+s5 = not na(hySpread) and hySpread < hyMA6 ? 1 : 0             // 信用：利差收斂
+s6 = not na(indproYoY) and indproYoY > 0 ? 1 : 0               // 實體：工業生產正成長
+macroScore = s1 + s2 + s3 + s4 + s5 + s6
+
+// ===== 價格趨勢確認 =====
+trendMA = request.security(syminfo.tickerid, "1M", ta.sma(close, trendLen), lookahead = barmerge.lookahead_off)
+trendOK = not useTrend or close > trendMA
+
+// ===== 進出場 =====
+if inRange
+    if macroScore >= entryScore and trendOK and strategy.position_size == 0
+        strategy.entry("總經多", strategy.long)
+    if strategy.position_size > 0 and (macroScore <= exitScore or (useTrend and close < trendMA))
+        strategy.close("總經多", comment = "評分 " + str.tostring(macroScore))
+
+// ===== 繪圖 =====
+plot(trendMA, "10月趨勢線", color = color.blue)
+bgcolor(macroScore >= entryScore ? color.new(color.green, 90) :
+     macroScore <= exitScore ? color.new(color.red, 92) : color.new(color.orange, 94))
+
+// 資料視窗檢視各因子
+plot(macroScore, "總經評分", display = display.data_window)
+plot(s1, "就業分",   display = display.data_window)
+plot(s2, "曲線分",   display = display.data_window)
+plot(s3, "通膨分",   display = display.data_window)
+plot(s4, "政策分",   display = display.data_window)
+plot(s5, "信用分",   display = display.data_window)
+plot(s6, "生產分",   display = display.data_window)

@@ -29,6 +29,7 @@
 | `04_obv_vwap_accumulation.pine` | OBV 籌碼累積 + MFI 資金流確認 | 量能/籌碼 | 主力吸籌型標的 |
 | `05_fundamental_momentum.pine` | EPS/營收年增 + ROE 濾網 + 價格動能 | **基本面**+動能 | 基本面成長股 |
 | `06_multifactor_score.pine` | 六因子評分（趨勢/動能/量能/波動/EPS/營收） | **多因子綜合** | 全市場通用 |
+| `07_macro_regime.pine` | 總經情勢評分濾網（FRED 數據：就業/曲線/通膨/Fed/信用/生產） | **總經** | 任何個股（套用總經風險開關） |
 
 > 策略 05、06 使用 `request.financial()` 抓財報資料（EPS、營收、ROE），
 > 這正是 Pro 會員資料的優勢。若標的在 TradingView 上沒有財務數據，
@@ -83,6 +84,27 @@ backtest/
 
 要加自己的策略：在 `strategies.py` 寫一個回傳 `(entries, exits)` 布林 Series 的函式，
 加進 `ALL_STRATEGIES` 字典即可。
+
+---
+
+## 三、總經策略回測（`backtest/macro/`）
+
+用真實總經數據（FRED：失業率、殖利率曲線、CPI、聯邦基金利率、高收益債利差、工業生產）
+建立 0–6 分「總經情勢評分」，已對 S&P 500 完成 1998–2025 實證回測：
+
+```bash
+cd backtest/macro
+python fetch_data.py      # 下載總經數據（GitHub 公開鏡像）
+python macro_strategy.py  # 回測 + 預測力檢驗 + 樣本外驗證 + 敏感度分析
+```
+
+主要結論（詳見 `results/`）：
+- 評分有單調預測力：6 分時下月上漲機率 79%、平均 +1.5%；2 分以下平均為負
+- 總經濾網的價值在**降風險**：最大回撤 -51% → -30%，Sharpe 0.62 → 0.76
+- 多頭年代會落後 Buy & Hold（保險成本）；與價格趨勢搭配效果最佳
+- 已處理數據公布延遲（shift 1 個月），無前視偏差
+
+Pine 版為 `07_macro_regime.pine`，可在 TradingView 直接套用到任何個股。
 
 ---
 
