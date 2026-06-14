@@ -17,6 +17,7 @@ Mark Minervini《超級績效》的趨勢樣板 (Trend Template)，8 大條件�
 | `07_near_52w_high.pine`       | 指標 7：距 52 週高點 25% 以內 |
 | `08_rs_rating.pine`           | 指標 8：RS 相對強度評級 ≥ 70 |
 | `09_score_subwindow.pine`     | 分數子視窗：總分 (0~8) 柱狀圖，會隨圖表移動 |
+| `10_trend_template_strategy.pine` | **策略版**：可回測。進場=首次符合8項，出場=停損/賣訊 |
 
 ## 計分表 (table) 為什麼拖圖不會動？
 `table` 是釘在畫面角落的固定面板，且永遠只顯示「最新一根 K 棒」的結果，這是它的設計。

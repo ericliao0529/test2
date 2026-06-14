@@ -1,0 +1,104 @@
+//@version=6
+// =============================================================================
+//  Minervini 超級績效趨勢樣板 — 策略版 (Strategy / 可回測)
+//  由指標版改寫：進場 = 首次符合 8 項；出場 = 停損 / 賣訊。
+//  回測結果請看下方「策略測試器 (Strategy Tester)」面板。
+//  建議使用日線。
+// =============================================================================
+strategy("Minervini 趨勢樣板 [策略]", overlay=true,
+         initial_capital=100000,
+         default_qty_type=strategy.percent_of_equity,
+         default_qty_value=100,
+         commission_type=strategy.commission.percent,
+         commission_value=0.1,
+         calc_on_every_tick=false)
+
+// ---------- 參數 ----------
+benchmark   = input.symbol("SPX", "RS 比較標的 (台股可改 TWSE:TAIEX)")
+rsThreshold = input.int(70, "RS 評級門檻", minval=0, maxval=100)
+trendDays   = input.int(22, "200MA 上升趨勢觀察天數")
+showTable   = input.bool(true, "顯示計分表")
+
+// 出場設定
+grpExit     = "出場設定"
+useStop     = input.bool(true,  "啟用停損", group=grpExit)
+stopPct     = input.float(8.0,  "停損 % (跌破買進價)", minval=0.1, step=0.5, group=grpExit)
+exitBelow50 = input.bool(true,  "賣訊1：收盤跌破 50MA", group=grpExit)
+exitDropAll = input.bool(false, "賣訊2：掉出 8 項全符合", group=grpExit)
+
+// ---------- 基礎資料 ----------
+ma50   = ta.sma(close, 50)
+ma150  = ta.sma(close, 150)
+ma200  = ta.sma(close, 200)
+low52  = ta.lowest(low, 252)
+high52 = ta.highest(high, 252)
+
+// ---------- 8 個指標 ----------
+cond1 = (close > ma150) and (close > ma200)
+cond2 = ma150 > ma200
+cond3 = ma200 > ma200[trendDays]
+cond4 = (ma50 > ma150) and (ma50 > ma200)
+cond5 = close > ma50
+cond6 = close >= low52 * 1.30
+cond7 = close >= high52 * 0.75
+
+benchClose = request.security(benchmark, timeframe.period, close)
+stockPerf  = close / close[252] - 1
+benchPerf  = benchClose / benchClose[252] - 1
+rsRatio    = (1 + stockPerf) / (1 + benchPerf)
+rsRank     = ta.percentrank(rsRatio, 252)
+cond8      = rsRank >= rsThreshold
+
+// ---------- 計分 ----------
+score = (cond1 ? 1 : 0) + (cond2 ? 1 : 0) + (cond3 ? 1 : 0) + (cond4 ? 1 : 0) + (cond5 ? 1 : 0) + (cond6 ? 1 : 0) + (cond7 ? 1 : 0) + (cond8 ? 1 : 0)
+passAll = score == 8
+
+// ---------- 進出場邏輯 ----------
+firstPass = passAll and not passAll[1]            // 首次符合 8 項 = 進場訊號
+
+// 進場
+if firstPass
+    strategy.entry("做多", strategy.long)
+
+// 停損價：以實際進場均價計算
+stopPrice = strategy.position_avg_price * (1 - stopPct / 100)
+if useStop and strategy.position_size > 0
+    strategy.exit("停損", from_entry="做多", stop=stopPrice)
+
+// 賣出訊號出場
+exitSignal = (exitBelow50 and ta.crossunder(close, ma50)) or (exitDropAll and (not passAll and passAll[1]))
+if exitSignal
+    strategy.close("做多", comment="賣訊")
+
+// ---------- 繪圖 ----------
+plot(ma50,  "MA50",  color=color.aqua)
+plot(ma150, "MA150", color=color.orange)
+plot(ma200, "MA200", color=color.red, linewidth=2)
+plotshape(firstPass, "首次8項全符合", shape.triangleup, location.belowbar, color.lime, size=size.small)
+bgcolor(passAll ? color.new(color.green, 88) : na)
+
+// ---------- 計分表 ----------
+f_mark(c) => c ? "✅" : "❌"
+
+if showTable
+    var table t = table.new(position.top_right, 2, 10, border_width=1, frame_width=1, frame_color=color.gray)
+    table.cell(t, 0, 0, "Minervini 趨勢樣板", text_color=color.black, bgcolor=color.new(color.blue, 80), text_halign=text.align_left)
+    table.cell(t, 1, 0, str.tostring(score) + " / 8", text_color=color.black, bgcolor=passAll ? color.new(color.green,60) : color.new(color.blue,80), text_halign=text.align_left)
+    table.cell(t, 0, 1, "1. 價>150MA 且 >200MA", text_color=color.black, text_halign=text.align_left)
+    table.cell(t, 1, 1, f_mark(cond1), text_halign=text.align_left)
+    table.cell(t, 0, 2, "2. 150MA > 200MA", text_color=color.black, text_halign=text.align_left)
+    table.cell(t, 1, 2, f_mark(cond2), text_halign=text.align_left)
+    table.cell(t, 0, 3, "3. 200MA 上升中", text_color=color.black, text_halign=text.align_left)
+    table.cell(t, 1, 3, f_mark(cond3), text_halign=text.align_left)
+    table.cell(t, 0, 4, "4. 50MA > 150MA,200MA", text_color=color.black, text_halign=text.align_left)
+    table.cell(t, 1, 4, f_mark(cond4), text_halign=text.align_left)
+    table.cell(t, 0, 5, "5. 價 > 50MA", text_color=color.black, text_halign=text.align_left)
+    table.cell(t, 1, 5, f_mark(cond5), text_halign=text.align_left)
+    table.cell(t, 0, 6, "6. 高於52週低點 30%+", text_color=color.black, text_halign=text.align_left)
+    table.cell(t, 1, 6, f_mark(cond6), text_halign=text.align_left)
+    table.cell(t, 0, 7, "7. 距52週高點 25%內", text_color=color.black, text_halign=text.align_left)
+    table.cell(t, 1, 7, f_mark(cond7), text_halign=text.align_left)
+    table.cell(t, 0, 8, "8. RS評級 >= " + str.tostring(rsThreshold), text_color=color.black, text_halign=text.align_left)
+    table.cell(t, 1, 8, f_mark(cond8), text_halign=text.align_left)
+    table.cell(t, 0, 9, "RS 評級 (近一年百分位)", text_color=color.black, text_halign=text.align_left)
+    table.cell(t, 1, 9, str.tostring(math.round(rsRank)), text_color=color.black, text_halign=text.align_left)
