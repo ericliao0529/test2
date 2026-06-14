@@ -42,12 +42,25 @@ score = (cond1 ? 1 : 0) + (cond2 ? 1 : 0) + (cond3 ? 1 : 0) + (cond4 ? 1 : 0) +
         (cond5 ? 1 : 0) + (cond6 ? 1 : 0) + (cond7 ? 1 : 0) + (cond8 ? 1 : 0)
 passAll = score == 8
 
-// ---------- 繪圖 ----------
+// ---------- 繪圖 (均線會跟著圖表移動) ----------
 plot(ma50,  "MA50",  color=color.aqua)
 plot(ma150, "MA150", color=color.orange)
 plot(ma200, "MA200", color=color.red, linewidth=2)
 plotshape(passAll, "8項全符合", shape.triangleup, location.belowbar, color.lime, size=size.small)
 bgcolor(passAll ? color.new(color.green, 88) : na)
+
+// ---------- 解法A：輸出到 Data Window (數據視窗)----------
+// 把游標移到任一根歷史 K 棒，右側「數據視窗」即顯示『那一根』的分數與各條件 (1=符合,0=不符合)
+plot(score,            "總分 (0~8)", display=display.data_window)
+plot(cond1 ? 1 : 0, "1 價>150/200MA", display=display.data_window)
+plot(cond2 ? 1 : 0, "2 150>200MA",    display=display.data_window)
+plot(cond3 ? 1 : 0, "3 200MA上升",    display=display.data_window)
+plot(cond4 ? 1 : 0, "4 50>150/200MA", display=display.data_window)
+plot(cond5 ? 1 : 0, "5 價>50MA",      display=display.data_window)
+plot(cond6 ? 1 : 0, "6 高於52週低30%",display=display.data_window)
+plot(cond7 ? 1 : 0, "7 距52週高25%內",display=display.data_window)
+plot(cond8 ? 1 : 0, "8 RS評級達標",   display=display.data_window)
+plot(rsRank,          "RS評級",       display=display.data_window)
 
 // ---------- 計分表 ----------
 f_mark(c) => c ? "✅" : "❌"

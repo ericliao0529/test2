@@ -1,0 +1,48 @@
+//@version=6
+// =============================================================================
+//  Minervini 趨勢樣板 — 分數子視窗 (解法B)
+//  把「符合幾項 (0~8)」畫成柱狀圖，放在獨立子視窗。
+//  拖動圖表時整段歷史分數會跟著移動，一眼看出哪段期間最強。
+//  overlay=false → 顯示在主圖下方的獨立面板。
+// =============================================================================
+indicator("Minervini 分數子視窗 (0~8)", overlay=false)
+
+// ---------- 參數 ----------
+benchmark   = input.symbol("SPX", "RS 比較標的 (台股可改 TWSE:TAIEX)")
+rsThreshold = input.int(70, "RS 評級門檻", minval=0, maxval=100)
+trendDays   = input.int(22, "200MA 上升趨勢觀察天數")
+
+// ---------- 基礎資料 ----------
+ma50   = ta.sma(close, 50)
+ma150  = ta.sma(close, 150)
+ma200  = ta.sma(close, 200)
+low52  = ta.lowest(low, 252)
+high52 = ta.highest(high, 252)
+
+// ---------- 8 個指標 ----------
+cond1 = (close > ma150) and (close > ma200)
+cond2 = ma150 > ma200
+cond3 = ma200 > ma200[trendDays]
+cond4 = (ma50 > ma150) and (ma50 > ma200)
+cond5 = close > ma50
+cond6 = close >= low52 * 1.30
+cond7 = close >= high52 * 0.75
+
+benchClose = request.security(benchmark, timeframe.period, close)
+stockPerf  = close / close[252] - 1
+benchPerf  = benchClose / benchClose[252] - 1
+rsRatio    = (1 + stockPerf) / (1 + benchPerf)
+rsRank     = ta.percentrank(rsRatio, 252)
+cond8      = rsRank >= rsThreshold
+
+// ---------- 計分 ----------
+score = (cond1 ? 1 : 0) + (cond2 ? 1 : 0) + (cond3 ? 1 : 0) + (cond4 ? 1 : 0) +
+        (cond5 ? 1 : 0) + (cond6 ? 1 : 0) + (cond7 ? 1 : 0) + (cond8 ? 1 : 0)
+
+// ---------- 柱狀圖：分數越高顏色越綠，滿分加亮 ----------
+barColor = score == 8 ? color.lime :
+           score >= 6 ? color.green :
+           score >= 4 ? color.orange : color.red
+plot(score, "符合項數", color=barColor, style=plot.style_columns, linewidth=2)
+hline(8, "滿分", color=color.new(color.lime, 50))
+hline(6, "強勢區", color=color.new(color.gray, 60))
