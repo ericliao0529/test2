@@ -36,8 +36,7 @@ rsRank     = ta.percentrank(rsRatio, 252)
 cond8      = rsRank >= rsThreshold
 
 // ---------- 計分 ----------
-score = (cond1 ? 1 : 0) + (cond2 ? 1 : 0) + (cond3 ? 1 : 0) + (cond4 ? 1 : 0) +
-        (cond5 ? 1 : 0) + (cond6 ? 1 : 0) + (cond7 ? 1 : 0) + (cond8 ? 1 : 0)
+score = (cond1 ? 1 : 0) + (cond2 ? 1 : 0) + (cond3 ? 1 : 0) + (cond4 ? 1 : 0) + (cond5 ? 1 : 0) + (cond6 ? 1 : 0) + (cond7 ? 1 : 0) + (cond8 ? 1 : 0)
 
 // ---------- 柱狀圖：分數越高顏色越綠，滿分加亮 ----------
 barColor = score == 8 ? color.lime :
