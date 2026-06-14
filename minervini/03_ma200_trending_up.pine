@@ -1,0 +1,13 @@
+//@version=6
+// 指標 3：200 日均線 至少上升一個月 (預設 22 個交易日呈上升)
+indicator("Minervini #3 200MA 上升中", overlay=true)
+
+trendDays = input.int(22, "200MA 上升趨勢觀察天數")
+
+ma200 = ta.sma(close, 200)
+
+cond3 = ma200 > ma200[trendDays]
+
+plot(ma200, "MA200", color=color.red, linewidth=2)
+plotshape(cond3, "符合", shape.triangleup, location.belowbar, color.lime, size=size.tiny)
+bgcolor(cond3 ? color.new(color.green, 90) : na)

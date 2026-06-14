@@ -1,0 +1,13 @@
+//@version=6
+// 指標 2：150 日均線 高於 200 日均線
+indicator("Minervini #2 150MA > 200MA", overlay=true)
+
+ma150 = ta.sma(close, 150)
+ma200 = ta.sma(close, 200)
+
+cond2 = ma150 > ma200
+
+plot(ma150, "MA150", color=color.orange)
+plot(ma200, "MA200", color=color.red, linewidth=2)
+plotshape(cond2, "符合", shape.triangleup, location.belowbar, color.lime, size=size.tiny)
+bgcolor(cond2 ? color.new(color.green, 90) : na)

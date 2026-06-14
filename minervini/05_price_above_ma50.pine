@@ -1,0 +1,11 @@
+//@version=6
+// 指標 5：股價 高於 50 日均線
+indicator("Minervini #5 價 > 50MA", overlay=true)
+
+ma50 = ta.sma(close, 50)
+
+cond5 = close > ma50
+
+plot(ma50, "MA50", color=color.aqua)
+plotshape(cond5, "符合", shape.triangleup, location.belowbar, color.lime, size=size.tiny)
+bgcolor(cond5 ? color.new(color.green, 90) : na)

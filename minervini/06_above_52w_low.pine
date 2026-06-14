@@ -1,0 +1,12 @@
+//@version=6
+// 指標 6：股價 至少高於 52 週低點 30%
+indicator("Minervini #6 高於52週低點 30%+", overlay=true)
+
+low52 = ta.lowest(low, 252)   // 52 週約 252 個交易日
+
+cond6 = close >= low52 * 1.30
+
+plot(low52,        "52週低點",   color=color.gray)
+plot(low52 * 1.30, "低點+30%門檻", color=color.fuchsia)
+plotshape(cond6, "符合", shape.triangleup, location.belowbar, color.lime, size=size.tiny)
+bgcolor(cond6 ? color.new(color.green, 90) : na)

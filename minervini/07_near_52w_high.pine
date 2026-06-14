@@ -1,0 +1,12 @@
+//@version=6
+// 指標 7：股價 距離 52 週高點 25% 以內 (即 >= 高點的 75%)
+indicator("Minervini #7 距52週高點 25%內", overlay=true)
+
+high52 = ta.highest(high, 252)   // 52 週約 252 個交易日
+
+cond7 = close >= high52 * 0.75
+
+plot(high52,        "52週高點",   color=color.gray)
+plot(high52 * 0.75, "高點-25%門檻", color=color.fuchsia)
+plotshape(cond7, "符合", shape.triangleup, location.belowbar, color.lime, size=size.tiny)
+bgcolor(cond7 ? color.new(color.green, 90) : na)

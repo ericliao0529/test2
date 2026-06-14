@@ -1,0 +1,20 @@
+//@version=6
+// 指標 8：RS 相對強度評級 >= 門檻 (預設 70)
+//   做法：個股 vs 大盤近一年報酬比值，取過去一年百分位 → 0~100 RS 評級。
+indicator("Minervini #8 RS評級 >= 70", overlay=true)
+
+benchmark   = input.symbol("SPX", "RS 比較標的 (台股可改 TWSE:TAIEX)")
+rsThreshold = input.int(70, "RS 評級門檻", minval=0, maxval=100)
+
+benchClose = request.security(benchmark, timeframe.period, close)
+
+stockPerf = close / close[252] - 1
+benchPerf = benchClose / benchClose[252] - 1
+rsRatio   = (1 + stockPerf) / (1 + benchPerf)
+rsRank    = ta.percentrank(rsRatio, 252)
+
+cond8 = rsRank >= rsThreshold
+
+plot(rsRank, "RS評級", color=color.yellow, linewidth=2)
+hline(rsThreshold, "門檻", color=color.gray)
+bgcolor(cond8 ? color.new(color.green, 90) : na)

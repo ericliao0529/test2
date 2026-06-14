@@ -1,0 +1,13 @@
+//@version=6
+// 指標 1：股價同時站上 150 日與 200 日均線
+indicator("Minervini #1 價>150MA 且 >200MA", overlay=true)
+
+ma150 = ta.sma(close, 150)
+ma200 = ta.sma(close, 200)
+
+cond1 = (close > ma150) and (close > ma200)
+
+plot(ma150, "MA150", color=color.orange)
+plot(ma200, "MA200", color=color.red, linewidth=2)
+plotshape(cond1, "符合", shape.triangleup, location.belowbar, color.lime, size=size.tiny)
+bgcolor(cond1 ? color.new(color.green, 90) : na)
