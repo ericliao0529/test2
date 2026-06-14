@@ -45,7 +45,9 @@ passAll = score == 8
 plot(ma50,  "MA50",  color=color.aqua)
 plot(ma150, "MA150", color=color.orange)
 plot(ma200, "MA200", color=color.red, linewidth=2)
-plotshape(passAll, "8項全符合", shape.triangleup, location.belowbar, color.lime, size=size.small)
+// 三角形只標『首次轉成 8/8 的那一根』(進場轉折點)；背景綠色標示整段符合期間
+firstPass = passAll and not passAll[1]
+plotshape(firstPass, "首次8項全符合", shape.triangleup, location.belowbar, color.lime, size=size.small)
 bgcolor(passAll ? color.new(color.green, 88) : na)
 
 // ---------- 解法A：輸出到 Data Window (數據視窗)----------
