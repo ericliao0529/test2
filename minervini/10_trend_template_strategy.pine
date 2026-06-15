@@ -21,9 +21,7 @@ showTable   = input.bool(true, "顯示計分表")
 
 // 出場設定
 grpExit     = "出場設定"
-useStop     = input.bool(true,  "啟用停損", group=grpExit)
-stopPct     = input.float(8.0,  "停損 % (跌破買進價)", minval=0.1, step=0.5, group=grpExit)
-exitFailN   = input.int(2,      "賣訊：至少幾個指標不符合就出場", minval=1, maxval=8, group=grpExit)
+exitFailN   = input.int(2, "賣訊：至少幾個指標不符合就出場", minval=1, maxval=8, group=grpExit)
 
 // ---------- 基礎資料 ----------
 ma50   = ta.sma(close, 50)
@@ -55,16 +53,11 @@ passAll = score == 8
 // ---------- 進出場邏輯 ----------
 firstPass = passAll and not passAll[1]            // 首次符合 8 項 = 進場訊號
 
-// 進場
+// 進場：符合全部 8 項
 if firstPass
     strategy.entry("做多", strategy.long)
 
-// 停損價：以實際進場均價計算
-stopPrice = strategy.position_avg_price * (1 - stopPct / 100)
-if useStop and strategy.position_size > 0
-    strategy.exit("停損", from_entry="做多", stop=stopPrice)
-
-// 賣出訊號出場：不符合的指標數 (8 - score) 達到門檻就出場 (預設 ≥ 2 個不符合)
+// 出場：不符合的指標數 (8 - score) 達到門檻就賣出 (預設 ≥ 2 個不符合)
 failCount  = 8 - score
 exitSignal = failCount >= exitFailN
 if exitSignal
