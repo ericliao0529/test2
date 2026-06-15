@@ -68,7 +68,8 @@ plot(ma50,  "MA50",  color=color.aqua)
 plot(ma150, "MA150", color=color.orange)
 plot(ma200, "MA200", color=color.red, linewidth=2)
 plotshape(firstPass, "首次8項全符合", shape.triangleup, location.belowbar, color.lime, size=size.small)
-bgcolor(passAll ? color.new(color.green, 88) : na)
+// 綠色區 = 真實持倉期間 (有持股就綠)，自動反映成交時間差與任何出場門檻
+bgcolor(strategy.position_size > 0 ? color.new(color.green, 88) : na)
 
 // ---------- 計分表 ----------
 f_mark(c) => c ? "✅" : "❌"
