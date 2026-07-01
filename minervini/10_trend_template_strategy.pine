@@ -1,7 +1,7 @@
 //@version=6
 // =============================================================================
 //  Minervini 超級績效趨勢樣板 — 策略版 (Strategy / 可回測)
-//  由指標版改寫：進場 = 首次符合 8 項；出場 = 停損 / 賣訊。
+//  進場 = 綠色區出現 (符合8項)；出場 = 綠色區消失 (不符合數達門檻)。
 //  回測結果請看下方「策略測試器 (Strategy Tester)」面板。
 //  建議使用日線。
 // =============================================================================
@@ -50,26 +50,30 @@ cond8      = rsRank >= rsThreshold
 score = (cond1 ? 1 : 0) + (cond2 ? 1 : 0) + (cond3 ? 1 : 0) + (cond4 ? 1 : 0) + (cond5 ? 1 : 0) + (cond6 ? 1 : 0) + (cond7 ? 1 : 0) + (cond8 ? 1 : 0)
 passAll = score == 8
 
-// ---------- 進出場邏輯 ----------
-firstPass = passAll and not passAll[1]            // 首次符合 8 項 = 進場訊號
+// ---------- 進出場邏輯 (綠色區 = 唯一依據，出現即進場、消失即出場) ----------
+enterSig  = passAll and not passAll[1]            // score 首次達 8 = 開啟綠色區
+failCount = 8 - score
+exitSig   = failCount >= exitFailN                // 不符合數達門檻 = 關閉綠色區
 
-// 進場：符合全部 8 項
-if firstPass
+// inZone 狀態機：綠色區 / 買進 / 賣出 全部由它驅動，保證綠色區塊數 = 交易次數
+var bool inZone = false
+inZone := inZone ? not exitSig : enterSig
+
+zoneStart = inZone and not inZone[1]              // 綠色區出現 → 進場
+zoneEnd   = not inZone and inZone[1]              // 綠色區消失 → 出場
+
+if zoneStart
     strategy.entry("做多", strategy.long)
-
-// 出場：不符合的指標數 (8 - score) 達到門檻就賣出 (預設 ≥ 2 個不符合)
-failCount  = 8 - score
-exitSignal = failCount >= exitFailN
-if exitSignal
+if zoneEnd
     strategy.close("做多", comment="賣訊")
 
 // ---------- 繪圖 ----------
 plot(ma50,  "MA50",  color=color.aqua)
 plot(ma150, "MA150", color=color.orange)
 plot(ma200, "MA200", color=color.red, linewidth=2)
-plotshape(firstPass, "首次8項全符合", shape.triangleup, location.belowbar, color.lime, size=size.small)
-// 綠色區 = 真實持倉期間 (有持股就綠)，自動反映成交時間差與任何出場門檻
-bgcolor(strategy.position_size > 0 ? color.new(color.green, 88) : na)
+plotshape(zoneStart, "進場 (綠色區出現)", shape.triangleup, location.belowbar, color.lime, size=size.small)
+// 綠色區 = inZone (與進出場同一依據)，一個綠色區塊 = 一筆交易
+bgcolor(inZone ? color.new(color.green, 88) : na)
 
 // ---------- 計分表 ----------
 f_mark(c) => c ? "✅" : "❌"
